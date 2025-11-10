@@ -1,6 +1,6 @@
 # Dockerfile for tv_ott_native_app
 # Uses Ubuntu base, installs build tools and Qt6, builds app, and uses a robust entrypoint script.
-# Note: The entrypoint defaults to /app/build for the build directory to align with orchestrators expecting a stable path.
+# Guarantees both /app/build and /tv_ott_native_app/build exist at build-time and runtime.
 
 FROM ubuntu:22.04
 
@@ -29,7 +29,7 @@ RUN apt-get update -y && \
       libx11-6 && \
     rm -rf /var/lib/apt/lists/*
 
-# Create app directory
+# Set a consistent app workdir inside the image
 WORKDIR /app
 
 # Copy only the tv_ott_native_app folder to keep the Docker context small
@@ -38,11 +38,16 @@ COPY ./tv_ott_native_app /app
 # Ensure entrypoint has LF endings and executable bit
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
-# Backward compatibility for orchestrators expecting /tv_ott_native_app/build:
-# - ensure both /app/build and /tv_ott_native_app/build exist
-# - symlink /tv_ott_native_app/build -> /app/build if not already a directory
+# Guarantee build directories exist and provide compatibility path.
+# - Create /app/build (real directory)
+# - Create /tv_ott_native_app (real directory)
+# - If /tv_ott_native_app/build does not exist, create a symlink to /app/build
 RUN mkdir -p /app/build /tv_ott_native_app && \
+    if [ -L /tv_ott_native_app/build ] && [ ! -e /tv_ott_native_app/build ]; then rm -f /tv_ott_native_app/build; fi && \
     if [ ! -e /tv_ott_native_app/build ]; then ln -s /app/build /tv_ott_native_app/build; fi
+
+# Provide a compatibility environment variable for any scripts
+ENV BUILD_DIR=/app/build
 
 # Pre-create build directory to leverage Docker layer caching during cmake configure
 RUN cmake -S /app -B /app/build

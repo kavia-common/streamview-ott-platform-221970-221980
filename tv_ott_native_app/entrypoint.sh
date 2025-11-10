@@ -39,33 +39,40 @@ else
   BUILD_DIR="$APP_ROOT/build"
 fi
 
+# Export for compatibility so sub-scripts can rely on it
+export BUILD_DIR
+
 CMAKE_SOURCE_DIR="$APP_ROOT"
 
 log "APP_ROOT=$APP_ROOT"
 log "BUILD_DIR=$BUILD_DIR"
 
-# Ensure build directory exists.
+# Ensure build directory exists (idempotent)
 mkdir -p "$BUILD_DIR"
 
-# Backward compatibility: ensure /tv_ott_native_app/build points to the active build dir when in container.
+# Backward compatibility: ensure /tv_ott_native_app/build exists and points to the active build dir when in container.
 if [[ "$APP_ROOT" == "/app" ]]; then
-  # Always ensure compatibility path exists
-  if [[ ! -e "/tv_ott_native_app" ]]; then
-    mkdir -p /tv_ott_native_app
+  # Ensure base compatibility directory
+  mkdir -p /tv_ott_native_app
+
+  # If an orphan/broken symlink exists, remove it
+  if [[ -L "/tv_ott_native_app/build" && ! -e "/tv_ott_native_app/build" ]]; then
+    rm -f /tv_ott_native_app/build
   fi
-  # If /tv_ott_native_app/build does not exist, create a symlink to BUILD_DIR (usually /app/build)
+
+  # Create a symlink if no path exists at /tv_ott_native_app/build
   if [[ ! -e "/tv_ott_native_app/build" ]]; then
     ln -s "$BUILD_DIR" /tv_ott_native_app/build
     log "Created symlink: /tv_ott_native_app/build -> $BUILD_DIR"
   else
-    # If it exists but is a directory and different from BUILD_DIR, keep both (do not remove).
-    if [[ -d "/tv_ott_native_app/build" && "/tv_ott_native_app/build" != "$BUILD_DIR" ]]; then
-      log "Note: /tv_ott_native_app/build exists as directory; keeping both paths."
+    # If it exists and is a directory, ensure it at least exists alongside BUILD_DIR
+    if [[ -d "/tv_ott_native_app/build" ]]; then
+      log "Compatibility dir present at /tv_ott_native_app/build"
     fi
   fi
 fi
 
-# Configure and build (Qt6 app). If Docker image lacks Qt6, this will fail in CI and should be addressed there.
+# Configure and build (Qt6 app).
 if [ ! -f "$BUILD_DIR/Makefile" ]; then
   log "Configuring project with CMake..."
   cmake -S "$CMAKE_SOURCE_DIR" -B "$BUILD_DIR"
