@@ -47,6 +47,24 @@ log "BUILD_DIR=$BUILD_DIR"
 # Ensure build directory exists.
 mkdir -p "$BUILD_DIR"
 
+# Backward compatibility: ensure /tv_ott_native_app/build points to the active build dir when in container.
+if [[ "$APP_ROOT" == "/app" ]]; then
+  # Always ensure compatibility path exists
+  if [[ ! -e "/tv_ott_native_app" ]]; then
+    mkdir -p /tv_ott_native_app
+  fi
+  # If /tv_ott_native_app/build does not exist, create a symlink to BUILD_DIR (usually /app/build)
+  if [[ ! -e "/tv_ott_native_app/build" ]]; then
+    ln -s "$BUILD_DIR" /tv_ott_native_app/build
+    log "Created symlink: /tv_ott_native_app/build -> $BUILD_DIR"
+  else
+    # If it exists but is a directory and different from BUILD_DIR, keep both (do not remove).
+    if [[ -d "/tv_ott_native_app/build" && "/tv_ott_native_app/build" != "$BUILD_DIR" ]]; then
+      log "Note: /tv_ott_native_app/build exists as directory; keeping both paths."
+    fi
+  fi
+fi
+
 # Configure and build (Qt6 app). If Docker image lacks Qt6, this will fail in CI and should be addressed there.
 if [ ! -f "$BUILD_DIR/Makefile" ]; then
   log "Configuring project with CMake..."

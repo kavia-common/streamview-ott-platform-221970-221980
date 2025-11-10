@@ -38,8 +38,14 @@ COPY ./tv_ott_native_app /app
 # Ensure entrypoint has LF endings and executable bit
 RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 
+# Backward compatibility for orchestrators expecting /tv_ott_native_app/build:
+# - ensure both /app/build and /tv_ott_native_app/build exist
+# - symlink /tv_ott_native_app/build -> /app/build if not already a directory
+RUN mkdir -p /app/build /tv_ott_native_app && \
+    if [ ! -e /tv_ott_native_app/build ]; then ln -s /app/build /tv_ott_native_app/build; fi
+
 # Pre-create build directory to leverage Docker layer caching during cmake configure
-RUN mkdir -p /app/build && cmake -S /app -B /app/build
+RUN cmake -S /app -B /app/build
 
 # Build the app at image build time (so the container can start instantly)
 # Use a robust CPU core detection with a default fallback.
