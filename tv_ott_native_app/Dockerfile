@@ -3,13 +3,16 @@
 
 FROM ubuntu:22.04
 
+# Ensure non-interactive installs and safer shell defaults
 ENV DEBIAN_FRONTEND=noninteractive
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
 # Install dependencies: build tools, cmake, Qt6 Core and Widgets development packages
+# Include tzdata to avoid edge-case interactive prompts on certain mirrors.
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
       ca-certificates \
+      tzdata \
       build-essential \
       cmake \
       qt6-base-dev \
@@ -28,8 +31,7 @@ RUN apt-get update -y && \
 # Create app directory
 WORKDIR /app
 
-# Copy the project
-# We copy only the tv_ott_native_app folder to keep context minimal
+# Copy only the tv_ott_native_app folder to keep the Docker context small
 COPY ./tv_ott_native_app /app
 
 # Ensure entrypoint has LF endings and executable bit
@@ -39,7 +41,10 @@ RUN sed -i 's/\r$//' /app/entrypoint.sh && chmod +x /app/entrypoint.sh
 RUN mkdir -p /app/build && cmake -S /app -B /app/build
 
 # Build the app at image build time (so the container can start instantly)
-RUN cmake --build /app/build -- -j"$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)"
+# Use a robust CPU core detection with a default fallback.
+RUN CORES="$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 2)" && \
+    cmake --build /app/build -- -j"${CORES}"
 
 # Default execution via entrypoint to keep consistency with dev/start environments
+# Use exec-form so PID1 is our entrypoint script, which then execs the app.
 ENTRYPOINT ["/app/entrypoint.sh"]
