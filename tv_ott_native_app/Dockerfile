@@ -1,5 +1,6 @@
 # Dockerfile for tv_ott_native_app
 # Uses Ubuntu base, installs build tools and Qt6, builds app, and uses a robust entrypoint script.
+# Note: The entrypoint defaults to /app/build for the build directory to align with orchestrators expecting a stable path.
 
 FROM ubuntu:22.04
 

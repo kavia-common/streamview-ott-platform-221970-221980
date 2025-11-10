@@ -18,12 +18,28 @@ if LC_ALL=C grep -q $'\r' "$0"; then
   log "Warning: Detected CRLF line endings in entrypoint; attempting to run regardless."
 fi
 
-# Workspace and build directories.
-APP_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-WORKSPACE_ROOT="$(cd "$APP_ROOT/.." && pwd)"
-PROJECT_ROOT="$WORKSPACE_ROOT"
+# Detect if running inside our container image where app is at /app
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [[ "$SCRIPT_DIR" == "/app"* ]]; then
+  APP_ROOT="/app"
+else
+  APP_ROOT="$SCRIPT_DIR"
+fi
+
+# Build directory resolution:
+# Priority order:
+# 1) Respect explicit BUILD_DIR env var if provided (non-empty)
+# 2) If inside container at /app, default to /app/build (stable path expected by orchestration)
+# 3) Otherwise default to $APP_ROOT/build for local runs
+if [[ -n "${BUILD_DIR:-}" ]]; then
+  BUILD_DIR="$BUILD_DIR"
+elif [[ "$APP_ROOT" == "/app" ]]; then
+  BUILD_DIR="/app/build"
+else
+  BUILD_DIR="$APP_ROOT/build"
+fi
+
 CMAKE_SOURCE_DIR="$APP_ROOT"
-BUILD_DIR="${BUILD_DIR:-$APP_ROOT/build}"
 
 log "APP_ROOT=$APP_ROOT"
 log "BUILD_DIR=$BUILD_DIR"
